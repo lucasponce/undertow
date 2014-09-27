@@ -20,6 +20,7 @@ package io.undertow.websockets.core;
 import io.undertow.conduits.IdleTimeoutConduit;
 import io.undertow.server.protocol.framed.AbstractFramedChannel;
 import io.undertow.server.protocol.framed.FrameHeaderData;
+import io.undertow.websockets.extensions.ExtensionFunction;
 import org.xnio.ChannelExceptionHandler;
 import org.xnio.ChannelListener;
 import org.xnio.ChannelListeners;
@@ -35,6 +36,7 @@ import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -54,7 +56,11 @@ public abstract class WebSocketChannel extends AbstractFramedChannel<WebSocketCh
     private boolean closeFrameReceived;
     private boolean closeFrameSent;
     private final String subProtocol;
-    private final boolean extensionsSupported;
+    protected final boolean extensionsSupported;
+    protected final boolean hasNegotiatedExtensions;
+    protected final List<ExtensionFunction> negotiatedExtensions;
+    protected final boolean hasExtensionsOpCode;
+
     /**
      * an incoming frame that has not been created yet
      */
@@ -81,12 +87,26 @@ public abstract class WebSocketChannel extends AbstractFramedChannel<WebSocketCh
      * @param client
      * @param peerConnections        The concurrent set that is used to track open connections associtated with an endpoint
      */
-    protected WebSocketChannel(final StreamConnection connectedStreamChannel, Pool<ByteBuffer> bufferPool, WebSocketVersion version, String wsUrl, String subProtocol, final boolean client, boolean extensionsSupported, Set<WebSocketChannel> peerConnections) {
+    protected WebSocketChannel(final StreamConnection connectedStreamChannel, Pool<ByteBuffer> bufferPool, WebSocketVersion version, String wsUrl, String subProtocol, final boolean client, boolean extensionsSupported, final List<ExtensionFunction> negotiatedExtensions, Set<WebSocketChannel> peerConnections) {
         super(connectedStreamChannel, bufferPool, new WebSocketFramePriority(), null);
         this.client = client;
         this.version = version;
         this.wsUrl = wsUrl;
         this.extensionsSupported = extensionsSupported;
+        this.negotiatedExtensions = negotiatedExtensions;
+        this.hasNegotiatedExtensions = this.negotiatedExtensions != null && this.negotiatedExtensions.size() > 0;
+        if (hasNegotiatedExtensions) {
+            boolean found = false;
+            for (ExtensionFunction extension : this.negotiatedExtensions) {
+                if (extension.hasExtensionOpCode()) {
+                    found = true;
+                    break;
+                }
+            }
+            this.hasExtensionsOpCode = found;
+        } else {
+            this.hasExtensionsOpCode = false;
+        }
         this.subProtocol = subProtocol;
         this.peerConnections = peerConnections;
         addCloseTask(new ChannelListener<WebSocketChannel>() {
@@ -414,5 +434,17 @@ public abstract class WebSocketChannel extends AbstractFramedChannel<WebSocketCh
          * @return true if the channel is available
          */
         boolean isDone();
+    }
+
+    /**
+     * @return true if this connection has negotiated extensions
+     *         false if this connection has not negotiated extensions
+     */
+    public boolean hasNegotiatedExtensions() {
+        return this.hasNegotiatedExtensions;
+    }
+
+    public List<ExtensionFunction> getNegotiatedExtensions() {
+        return negotiatedExtensions;
     }
 }

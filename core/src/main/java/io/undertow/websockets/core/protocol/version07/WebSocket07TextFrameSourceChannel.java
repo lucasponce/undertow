@@ -32,7 +32,15 @@ class WebSocket07TextFrameSourceChannel extends FixedPayloadFrameSourceChannel {
         super(wsChannel, WebSocketFrameType.TEXT, payloadSize, rsv, finalFragment, pooled, frameLength, masker, checker);
     }
 
+    WebSocket07TextFrameSourceChannel(WebSocket07Channel wsChannel, long payloadSize, int rsv, boolean finalFragment, Masker masker, Pooled<ByteBuffer> pooled, long frameLength) {
+        super(wsChannel, WebSocketFrameType.TEXT, payloadSize, rsv, finalFragment, pooled, frameLength, masker);
+    }
+
     WebSocket07TextFrameSourceChannel(WebSocket07Channel wsChannel, long payloadSize, int rsv, boolean finalFragment, UTF8Checker checker, Pooled<ByteBuffer> pooled, long frameLength) {
         super(wsChannel, WebSocketFrameType.TEXT, payloadSize, rsv, finalFragment, pooled, frameLength, checker);
+    }
+
+    WebSocket07TextFrameSourceChannel(WebSocket07Channel wsChannel, long payloadSize, int rsv, boolean finalFragment, Pooled<ByteBuffer> pooled, long frameLength) {
+        super(wsChannel, WebSocketFrameType.TEXT, payloadSize, rsv, finalFragment, pooled, frameLength);
     }
 }

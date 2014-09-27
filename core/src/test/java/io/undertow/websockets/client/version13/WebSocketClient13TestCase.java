@@ -83,7 +83,8 @@ public class WebSocketClient13TestCase {
     @Test
     public void testTextMessage() throws Exception {
 
-        final WebSocketChannel webSocketChannel = WebSocketClient.connect(worker, buffer, OptionMap.EMPTY, new URI(DefaultServer.getDefaultServerURL()), WebSocketVersion.V13).get();
+        WebSocketClient client = new WebSocketClient();
+        final WebSocketChannel webSocketChannel = client.connect(worker, buffer, OptionMap.EMPTY, new URI(DefaultServer.getDefaultServerURL()), WebSocketVersion.V13).get();
 
         final CountDownLatch latch = new CountDownLatch(1);
         final AtomicReference<String> result = new AtomicReference<>();

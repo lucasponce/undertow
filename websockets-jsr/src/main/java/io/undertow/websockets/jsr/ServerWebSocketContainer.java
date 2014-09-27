@@ -176,6 +176,7 @@ public class ServerWebSocketContainer implements ServerContainer, Closeable {
 
         //in theory we should not be able to connect until the deployment is complete, but the definition of when a deployment is complete is a bit nebulous.
         WebSocketClientNegotiation clientNegotiation = new ClientNegotiation(cec.getPreferredSubprotocols(), toExtensionList(cec.getExtensions()), cec);
+        WebSocketClient client = new WebSocketClient();
         XnioSsl ssl = null;
         for (WebsocketClientSslProvider provider : clientSslProviders) {
             ssl = provider.getSsl(xnioWorker, endpointInstance, cec, path);
@@ -184,7 +185,7 @@ public class ServerWebSocketContainer implements ServerContainer, Closeable {
             }
         }
 
-        IoFuture<WebSocketChannel> session = WebSocketClient.connect(xnioWorker, ssl, bufferPool, OptionMap.EMPTY, path, WebSocketVersion.V13, clientNegotiation);
+        IoFuture<WebSocketChannel> session = client.connect(xnioWorker, ssl, bufferPool, OptionMap.EMPTY, path, WebSocketVersion.V13, clientNegotiation);
         Number timeout = (Number) cec.getUserProperties().get(TIMEOUT);
         if(session.await(timeout == null ? DEFAULT_WEB_SOCKET_TIMEOUT_SECONDS: timeout.intValue(), TimeUnit.SECONDS) != IoFuture.Status.DONE) {
             //add a notifier to close the channel if the connection actually completes
@@ -237,9 +238,9 @@ public class ServerWebSocketContainer implements ServerContainer, Closeable {
     private Session connectToServerInternal(final Endpoint endpointInstance, XnioSsl ssl, final ConfiguredClientEndpoint cec, final URI path) throws DeploymentException, IOException {
         //in theory we should not be able to connect until the deployment is complete, but the definition of when a deployment is complete is a bit nebulous.
         WebSocketClientNegotiation clientNegotiation = new ClientNegotiation(cec.getConfig().getPreferredSubprotocols(), toExtensionList(cec.getConfig().getExtensions()), cec.getConfig());
+        WebSocketClient client = new WebSocketClient();
 
-
-        IoFuture<WebSocketChannel> session = WebSocketClient.connect(xnioWorker, ssl, bufferPool, OptionMap.EMPTY, path, WebSocketVersion.V13, clientNegotiation); //TODO: fix this
+        IoFuture<WebSocketChannel> session = client.connect(xnioWorker, ssl, bufferPool, OptionMap.EMPTY, path, WebSocketVersion.V13, clientNegotiation); //TODO: fix this
         Number timeout = (Number) cec.getConfig().getUserProperties().get(TIMEOUT);
         if(session.await(timeout == null ? DEFAULT_WEB_SOCKET_TIMEOUT_SECONDS: timeout.intValue(), TimeUnit.SECONDS) != IoFuture.Status.DONE) {
             //add a notifier to close the channel if the connection actually completes

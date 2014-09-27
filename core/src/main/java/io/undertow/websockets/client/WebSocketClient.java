@@ -21,6 +21,7 @@ package io.undertow.websockets.client;
 import io.undertow.websockets.core.WebSocketChannel;
 import io.undertow.websockets.core.WebSocketVersion;
 
+import io.undertow.websockets.extensions.ExtensionHandshake;
 import org.xnio.Cancellable;
 import org.xnio.ChannelListener;
 import org.xnio.FutureResult;
@@ -35,7 +36,9 @@ import org.xnio.ssl.XnioSsl;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.ByteBuffer;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * The Web socket client.
@@ -44,20 +47,21 @@ import java.util.Map;
  */
 public class WebSocketClient {
 
+    private Set<ExtensionHandshake> clientExtensions = new HashSet<>();
 
-    public static IoFuture<WebSocketChannel> connect(XnioWorker worker, final Pool<ByteBuffer> bufferPool, final OptionMap optionMap, final URI uri, WebSocketVersion version) {
+    public IoFuture<WebSocketChannel> connect(XnioWorker worker, final Pool<ByteBuffer> bufferPool, final OptionMap optionMap, final URI uri, WebSocketVersion version) {
         return connect(worker, bufferPool, optionMap, uri, version, null);
     }
 
-    public static IoFuture<WebSocketChannel> connect(XnioWorker worker, XnioSsl ssl, final Pool<ByteBuffer> bufferPool, final OptionMap optionMap, final URI uri, WebSocketVersion version) {
+    public IoFuture<WebSocketChannel> connect(XnioWorker worker, XnioSsl ssl, final Pool<ByteBuffer> bufferPool, final OptionMap optionMap, final URI uri, WebSocketVersion version) {
         return connect(worker, ssl, bufferPool, optionMap, uri, version, null);
     }
 
-    public static IoFuture<WebSocketChannel> connect(XnioWorker worker, final Pool<ByteBuffer> bufferPool, final OptionMap optionMap, final URI uri, WebSocketVersion version, WebSocketClientNegotiation clientNegotiation) {
+    public IoFuture<WebSocketChannel> connect(XnioWorker worker, final Pool<ByteBuffer> bufferPool, final OptionMap optionMap, final URI uri, WebSocketVersion version, WebSocketClientNegotiation clientNegotiation) {
         return connect(worker, null, bufferPool, optionMap, uri, version, clientNegotiation);
     }
 
-    public static IoFuture<WebSocketChannel> connect(XnioWorker worker, XnioSsl ssl, final Pool<ByteBuffer> bufferPool, final OptionMap optionMap, final URI uri, WebSocketVersion version, WebSocketClientNegotiation clientNegotiation) {
+    public IoFuture<WebSocketChannel> connect(XnioWorker worker, XnioSsl ssl, final Pool<ByteBuffer> bufferPool, final OptionMap optionMap, final URI uri, WebSocketVersion version, WebSocketClientNegotiation clientNegotiation) {
 
         final FutureResult<WebSocketChannel> ioFuture = new FutureResult<>();
         final URI newUri;
@@ -66,7 +70,7 @@ public class WebSocketClient {
         } catch (URISyntaxException e) {
             throw new RuntimeException(e);
         }
-        final WebSocketClientHandshake handshake = WebSocketClientHandshake.create(version, newUri, clientNegotiation);
+        final WebSocketClientHandshake handshake = WebSocketClientHandshake.create(version, newUri, clientNegotiation, clientExtensions);
         final Map<String, String> headers = handshake.createHeaders();
         if (clientNegotiation != null) {
             clientNegotiation.beforeRequest(headers);
@@ -107,8 +111,16 @@ public class WebSocketClient {
         return ioFuture.getIoFuture();
     }
 
-
-    private WebSocketClient() {
-
+    /**
+     * Add a new WebSocket Extension into the client.
+     *
+     * @param extension a new {@code ExtensionHandshake} instance
+     * @return          current client
+     */
+    public WebSocketClient addExtension(ExtensionHandshake extension) {
+        if (extension != null) {
+            clientExtensions.add(extension);
+        }
+        return this;
     }
 }

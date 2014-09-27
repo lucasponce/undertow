@@ -20,6 +20,8 @@ package io.undertow.websockets.core;
 import io.undertow.server.protocol.framed.FrameHeaderData;
 import io.undertow.websockets.core.function.ChannelFunction;
 import io.undertow.websockets.core.function.ChannelFunctionFileChannel;
+import io.undertow.websockets.extensions.ExtensionByteBuffer;
+import io.undertow.websockets.extensions.ExtensionFunction;
 import org.xnio.Pooled;
 import org.xnio.channels.StreamSinkChannel;
 
@@ -27,6 +29,7 @@ import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
+import java.util.List;
 
 /**
  * A StreamSourceFrameChannel that is used to read a Frame with a fixed sized payload.
@@ -36,10 +39,19 @@ import java.nio.channels.FileChannel;
 public abstract class FixedPayloadFrameSourceChannel extends StreamSourceFrameChannel {
 
     private final ChannelFunction[] functions;
+    private final List<ExtensionFunction> extensions;
+    private ExtensionByteBuffer extensionResult;
 
     protected FixedPayloadFrameSourceChannel(WebSocketChannel wsChannel, WebSocketFrameType type, long payloadSize, int rsv, boolean finalFragment, Pooled<ByteBuffer> pooled, long frameLength, ChannelFunction... functions) {
         super(wsChannel, type, payloadSize, rsv, finalFragment, pooled, frameLength);
+        if (wsChannel.hasNegotiatedExtensions()
+                && wsChannel.getNegotiatedExtensions() != null && wsChannel.getNegotiatedExtensions().size() > 0) {
+            extensions = wsChannel.getNegotiatedExtensions();
+        } else {
+            extensions = null;
+        }
         this.functions = functions;
+        this.extensionResult = null;
     }
 
     @Override
@@ -72,12 +84,27 @@ public abstract class FixedPayloadFrameSourceChannel extends StreamSourceFrameCh
 
     @Override
     public int read(ByteBuffer dst) throws IOException {
-        int position = dst.position();
-        int r = super.read(dst);
-        if (r > 0) {
-            afterRead(dst, position, r);
+        int r;
+        if (extensionResult == null) {
+            int position = dst.position();
+            r = super.read(dst);
+
+            if (r > 0) {
+                afterRead(dst, position, r);
+            }
+
+            if (getRsv() > 0) {
+                extensionResult = applyExtensions(dst, position, r);
+            }
+            return r;
+        } else {
+            r = extensionResult.flushExtra(dst);
+            if (!extensionResult.hasExtra()) {
+                extensionResult.free();
+                extensionResult = null;
+            }
+            return r;
         }
-        return r;
     }
 
     @Override
@@ -130,7 +157,40 @@ public abstract class FixedPayloadFrameSourceChannel extends StreamSourceFrameCh
             getFramedChannel().markReadsBroken(e);
             throw e;
         }
+    }
 
+    /**
+     * Process Extensions chain after a read operation.
+     * <p>
+     * An extension can modify original content beyond {@code ByteBuffer} capacity,then original buffer is wrapped with
+     * {@link ExtensionByteBuffer} class. {@code ExtensionByteBuffer} stores extra buffer to manage overflow of original
+     * {@code ByteBuffer} .
+     *
+     * @param buffer    the buffer to operate on
+     * @param position  the index in the buffer to start from
+     * @param length    the number of bytes to operate on
+     * @return          a {@link ExtensionByteBuffer} instance as a wrapper of original buffer with extra buffers;
+     *                  {@code null} if no extra buffers needed
+     * @throws IOException
+     */
+    protected ExtensionByteBuffer applyExtensions(final ByteBuffer buffer, final int position, final int length) throws IOException {
+        ExtensionByteBuffer extBuffer = new ExtensionByteBuffer(getWebSocketChannel(), buffer, position);
+        int newLength = length;
+        if (extensions != null) {
+            for (ExtensionFunction ext : extensions) {
+                ext.afterRead(this, extBuffer, position, newLength);
+                if (extBuffer.getFilled() == 0) {
+                    buffer.position(position);
+                    newLength = 0;
+                } else if (extBuffer.getFilled() != newLength) {
+                    newLength = extBuffer.getFilled();
+                }
+            }
+        }
+        if (!extBuffer.hasExtra()) {
+            return null;
+        }
+        return extBuffer;
     }
 
     private static class Bounds {

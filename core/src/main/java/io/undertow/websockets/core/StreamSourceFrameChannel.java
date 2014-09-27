@@ -41,7 +41,7 @@ public abstract class StreamSourceFrameChannel extends AbstractFramedStreamSourc
 
     private boolean finalFragment;
     private final int rsv;
-    private final long payloadSize;
+    private long payloadSize;
 
     protected StreamSourceFrameChannel(WebSocketChannel wsChannel, WebSocketFrameType type, long payloadSize, Pooled<ByteBuffer> pooled, long frameLength) {
         this(wsChannel, type, payloadSize, 0, true, pooled, frameLength);
@@ -77,7 +77,10 @@ public abstract class StreamSourceFrameChannel extends AbstractFramedStreamSourc
         return rsv;
     }
 
-    int getWebSocketFrameCount() {
+    /**
+     * Return the # of fragment on a message
+     */
+    public int getWebSocketFrameCount() {
         return getReadFrameCount();
     }
 
@@ -128,5 +131,20 @@ public abstract class StreamSourceFrameChannel extends AbstractFramedStreamSourc
         if (((WebSocketFrame) headerData).isFinalFragment()) {
             finalFrame();
         }
+    }
+
+    /**
+     * Return payload length defined on frame header
+     */
+    public long getPayloadSize() {
+        return payloadSize;
+    }
+
+    /**
+     * Set payload length defined on frame header.
+     * This method is used in OPCODE_CONT type frames.
+     */
+    public void setPayloadSize(long payloadSize) {
+        this.payloadSize = payloadSize;
     }
 }
